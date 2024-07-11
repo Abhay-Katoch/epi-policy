@@ -264,14 +264,14 @@ class EpiModel:
         self.I_R = np.random.binomial(self.I.astype(int), 1 - np.exp(-self.gamma))
         self.A_R = np.random.binomial(self.A.astype(int), 1 - np.exp(-self.gamma))
 
-        dS = self.S - self.S_E
-        dE = self.E + self.S_E - self.E_P
-        dP = self.P + self.E_P - self.P_IA
-        dI = self.I + self.P_I - self.I_R
-        dA = self.A + self.P_A - self.A_R
-        dR = self.R + self.I_R + self.A_R
+        dS = - self.S_E
+        dE = self.S_E - self.E_P
+        dP = self.E_P - self.P_IA
+        dI = self.P_I - self.I_R
+        dA = self.P_A - self.A_R
+        dR = self.I_R + self.A_R
 
-        return np.array([dS, dE, dP, dI, dA, dR]).flatten()
+        return np.array([self.S_E, dE, dP, dI, dA, dR]).flatten()
 
     def run_simulation(self, days):
         self.initialize_state()
