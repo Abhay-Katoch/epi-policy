@@ -203,7 +203,6 @@ class EpiModel:
         #self.I = self.I0
 
         self.incidence_history = np.zeros((self.number_jurisdictions, 15))
-        self.lagged_incidence = np.zeros((self.number_jurisdictions))
         self.L = np.zeros((self.number_jurisdictions))
         self.NPI = np.zeros((self.number_jurisdictions))
 
@@ -229,15 +228,13 @@ class EpiModel:
         self.results = pd.DataFrame(columns = column_names)
         self.total_survey_lag = 13
         self.incidence_history = np.zeros((self.number_jurisdictions, self.total_survey_lag))
-
-    def iterate_model(self, y, day):
-        self.S, self.E, self.P, self.I, self.A, self.R = y.reshape(6,6)
+    
+    def iterate_model(self, day):
 
         self.incidence_history[:, 1:] = self.incidence_history[:, :-1]
-        self.incidence_history[:, 0] = np.random.binomial(self.S_E, self.p)
-
+        self.incidence_history[:, 0] = np.random.binomial(self.S_E, self.p)   
+        
         lagged_incidence = self.incidence_history[:, self.total_survey_lag - 1]
-
         L_star_ind = np.minimum(1e5 * (lagged_incidence / self.N) / (self.c * self.p), self.L_max + 0.01) # The 0.01 is there just to floor the value
         L_star_matrix = np.maximum.accumulate(np.transpose(L_star_ind) * self.coordination, axis = 1)
         L_star_f = np.where(self.L_c, L_star_matrix[:, -1], L_star_ind)
@@ -249,14 +246,14 @@ class EpiModel:
         variant_rr = 1# self.variant_beta_rr if day >= self.variant_t else 1
         total_infectious = self.P + self.I + self.A
         transmission_rate = self.beta * ((1 - self.NPI[:, np.newaxis] * self.tau) * variant_rr)
-        lambda_vector = np.sum(transmission_rate * (total_infectious / self.N), axis = 1)
+        self.lambda_vector = np.sum(transmission_rate * (total_infectious / self.N), axis = 1)
 
-        self.S_E = np.random.binomial(self.S.astype(int), 1 - np.exp(-lambda_vector))
-        self.E_P = np.random.binomial(self.E.astype(int), 1 - np.exp(-self.sigma))
-
-        self.P_IA = np.random.binomial(self.P.astype(int), 1 - np.exp(-self.delta))
-        self.P_I = np.random.binomial(self.P_IA.astype(int), 1 - self.rho)
-        self.P_A = self.P_IA - self.P_I
+        self.S_E = np.random.binomial(self.S.astype(int), 1 - np.exp(- self.lambda_vector))
+        self.E_P = np.random.binomial(self.E.astype(int), 1 - np.exp(- self.sigma))
+        
+        # This may be an error; if I and A are independently sampled from P, then there is a possibility that I_t + A_t > P_{t - 1}
+        self.P_I = np.random.binomial(self.P.astype(int), 1 - np.exp(- self.delta * (1 - self.rho)))
+        self.P_A = np.random.binomial(self.P.astype(int), 1 - np.exp(- self.delta * self.rho))
 
         # Logic error in original implementation of I/A -> R; D is sampled from R, therefore there is a chance that D is sampled from A.
         #   - Unless r is adjusted for *all* cases and not just I, this leads to an oversampling of deaths.
@@ -264,20 +261,15 @@ class EpiModel:
         self.I_R = np.random.binomial(self.I.astype(int), 1 - np.exp(-self.gamma))
         self.A_R = np.random.binomial(self.A.astype(int), 1 - np.exp(-self.gamma))
 
-        dS = - self.S_E
-        dE = self.S_E - self.E_P
-        dP = self.E_P - self.P_IA
-        dI = self.P_I - self.I_R
-        dA = self.P_A - self.A_R
-        dR = self.I_R + self.A_R
+        self.S -= self.S_E
+        self.E += self.S_E - self.E_P
+        self.P += self.E_P - (self.P_I + self.P_A)
+        self.I += self.P_I - self.I_R
+        self.A += self.P_A - self.A_R
+        self.R += self.I_R + self.A_R
 
-        return np.array([self.S_E, dE, dP, dI, dA, dR]).flatten()
-
-    def run_simulation(self, days):
+    def run_simulation(self, days: int):
         self.initialize_state()
 
-        timescale = np.linspace(0, days, days)
-        initial_values = np.array([self.S, self.E, self.P, self.I, self.A, self.R]).flatten().astype(int)
-        solution = odeint(self.iterate_model, initial_values, timescale) # Pass the array of time points
-
-        return solution
+        for day in range(days):
+            self.iterate_model2(day)
