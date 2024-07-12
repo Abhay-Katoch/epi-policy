@@ -70,8 +70,8 @@ class EpiModel:
 
       c_rr = self.jurisdictions['mixing.risk.ratio'].astype(float).values
 
-      tau_eff = (1 / self.delta) + (1 / self.gamma)
-      cbeta = self.R0 / tau_eff
+      tau_eff = (1 / self.delta) + (1 / self.gamma) # type: ignore
+      cbeta = self.R0 / tau_eff # type: ignore
       population_proportion = self.jurisdictions['population'].values / sum(self.jurisdictions['population'].values)
 
       c_1 = cbeta / (population_proportion[0] + sum(c_rr[1: ] * population_proportion[1: ]))
@@ -83,7 +83,7 @@ class EpiModel:
 
       return beta
 
-    def initialize_state(self):#, compartment_variables: list):
+    def initialize_state(self, days):#, compartment_variables: list):
 
         #for variable in compartment_variables:
         #    setattr(self, variable, np.zeros((self.number_jurisdictions), dtype = int))
@@ -96,20 +96,23 @@ class EpiModel:
         self.L = np.zeros((self.number_jurisdictions))
         self.NPI = np.zeros((self.number_jurisdictions))
 
-        self.S = self.jurisdictions["S0"].values.astype(int)
-        self.I = self.jurisdictions["I0"].values.astype(int)
-        self.E = np.zeros((self.number_jurisdictions)).astype(int)
-        self.P = np.zeros((self.number_jurisdictions)).astype(int)
-        self.A = np.zeros((self.number_jurisdictions)).astype(int)
-        self.R = np.zeros((self.number_jurisdictions)).astype(int)
-        self.S_E = np.zeros((self.number_jurisdictions)).astype(int)
-        self.E_P = np.zeros((self.number_jurisdictions)).astype(int)
-        self.P_I = np.zeros((self.number_jurisdictions)).astype(int)
-        self.P_IA = np.zeros((self.number_jurisdictions)).astype(int)
-        self.P_A = np.zeros((self.number_jurisdictions)).astype(int)
-        self.A_R = np.zeros((self.number_jurisdictions)).astype(int)
-        self.I_R = np.zeros((self.number_jurisdictions)).astype(int)
-        self.p_SE = np.zeros((self.number_jurisdictions)).astype(int)
+
+        self.S = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.I = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.E = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.P = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.A = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.R = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.S_E = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.E_P = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.P_I = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.P_IA = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.P_A = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.A_R = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.I_R = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.p_SE = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.L_star_t = np.zeros((self.number_jurisdictions))
+        self.L_t = np.zeros((self.number_jurisdictions))
 
         self.total_surv_lag = int(self.total_surv_lag)
         self.N = self.jurisdictions["population"].values
@@ -120,46 +123,46 @@ class EpiModel:
         self.incidence_history = np.zeros((self.number_jurisdictions, self.total_survey_lag))
     
     def iterate_model(self, day):
+        C_hat_t = np.random.binomial(self.S_E[day - self.total_survey_lag], self.p) # type: ignore
+        x_star_t = np.minimum((1e5 * C_hat_t) / (self.N * self.p * self.c), self.L_max) # type: ignore
 
-        self.incidence_history[:, 1:] = self.incidence_history[:, :-1]
-        self.incidence_history[:, 0] = np.random.binomial(self.S_E, self.p)   
-        
-        lagged_incidence = self.incidence_history[:, self.total_survey_lag - 1]
-        L_star_ind = np.minimum(1e5 * (lagged_incidence / self.N) / (self.c * self.p), self.L_max + 0.01) # The 0.01 is there just to floor the value
-        L_star_matrix = np.maximum.accumulate(np.transpose(L_star_ind) * self.coordination, axis = 1)
-        L_star_f = np.where(self.L_c, L_star_matrix[:, -1], L_star_ind)
+        self.L_star_t += 0.5 * (x_star_t - self.L_star_t)
 
-        self.L = (L_star_f - self.L) / 2
-        change_NPI = np.where(self.L > self.NPI, day % self.a_up == 0, day % self.a_down == 0)
-        self.NPI = np.where(change_NPI, np.floor(self.L), self.NPI)
+        update_up = (day % self.a_up == 0) & (np.round(self.L_star_t) > self.L_t) # type: ignore
+        update_down = (day % self.a_down == 0) & (np.round(self.L_star_t) < self.L_t) # type: ignore
+        self.L_t = np.where(update_up, np.round(self.L_star_t), self.L_t)
+        self.L_t = np.where(update_down, np.round(self.L_star_t), self.L_t)
 
-        variant_rr = 1# self.variant_beta_rr if day >= self.variant_t else 1
-        total_infectious = self.P + self.I + self.A
-        transmission_rate = self.beta * ((1 - self.NPI[:, np.newaxis] * self.tau) * variant_rr)
-        self.lambda_vector = np.sum(transmission_rate * (total_infectious / self.N), axis = 1)
+        self.beta_t = np.dot((1 - (self.L_t * self.tau)), self.beta) # type: ignore
+        self.lambda_t = self.beta_t * (self.P[day] + self.I[day] + self.A[day])
 
-        self.S_E = np.random.binomial(self.S.astype(int), 1 - np.exp(- self.lambda_vector))
-        self.E_P = np.random.binomial(self.E.astype(int), 1 - np.exp(- self.sigma))
+        self.S_E[day] = np.random.binomial(self.S[day].astype(int), 1 - np.exp(- self.lambda_t / self.N))
+        self.E_P[day] = np.random.binomial(self.E[day].astype(int), 1 - np.exp(- self.sigma)) # type: ignore
         
         # This may be an error; if I and A are independently sampled from P, then there is a possibility that I_t + A_t > P_{t - 1}
-        self.P_I = np.random.binomial(self.P.astype(int), 1 - np.exp(- self.delta * (1 - self.rho)))
-        self.P_A = np.random.binomial(self.P.astype(int), 1 - np.exp(- self.delta * self.rho))
+        self.P_I[day] = np.random.binomial(self.P[day].astype(int), 1 - np.exp(- self.delta * (1 - self.rho))) # type: ignore
+        self.P_A[day] = np.random.binomial(self.P[day].astype(int), 1 - np.exp(- self.delta * self.rho)) # type: ignore
 
         # Logic error in original implementation of I/A -> R; D is sampled from R, therefore there is a chance that D is sampled from A.
         #   - Unless r is adjusted for *all* cases and not just I, this leads to an oversampling of deaths.
         #   - Also, gamma should probably be different between I and A; it takes less time (assumed) to recover from A than I.
-        self.I_R = np.random.binomial(self.I.astype(int), 1 - np.exp(-self.gamma))
-        self.A_R = np.random.binomial(self.A.astype(int), 1 - np.exp(-self.gamma))
+        self.I_R[day] = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma))
+        self.A_R[day] = np.random.binomial(self.A[day].astype(int), 1 - np.exp(-self.gamma))
 
-        self.S -= self.S_E
-        self.E += self.S_E - self.E_P
-        self.P += self.E_P - (self.P_I + self.P_A)
-        self.I += self.P_I - self.I_R
-        self.A += self.P_A - self.A_R
-        self.R += self.I_R + self.A_R
+        # Potential logic error in the implementation of S_{t + 1}. Paper says that S_{t + 1} = S_t - S_E (where S_E is modelled by the binomial).
+        #   - This produces a linear decay for S overtime; not an exponential decay like one would expect from a differential equation.
+        #   - Paper also mentions dS/dt = \lambda_t .* S, but this produces an exponential decay function?? 
+        self.S[day + 1] = self.S[day] - self.S_E[day]
+        self.E[day + 1] = self.E[day] + self.S_E[day] - self.E_P[day]
+        self.P[day + 1] = self.P[day] + self.E_P[day] - (self.P_I[day] + self.P_A[day])
+        self.I[day + 1] = self.I[day] + self.P_I[day] - self.I_R[day]
+        self.A[day + 1] = self.A[day] + self.P_A[day] - self.A_R[day]
+        self.R[day + 1] = self.R[day] + self.I_R[day] + self.A_R[day]
 
     def run_simulation(self, days: int):
-        self.initialize_state()
+        self.initialize_state(days)
+        self.S[0] = self.jurisdictions["S0"].values.astype(int)
+        self.I[0] = self.jurisdictions["I0"].values.astype(int)
 
-        for day in range(days):
+        for day in range(days - 1):
             self.iterate_model(day)
