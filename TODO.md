@@ -13,5 +13,5 @@ $$
 and 
 
 $$
-S_{t} = S_{t - 1} - B(S_{t - 1}, 1 - \text{exp}(\frac{-\lambda_t}{N}))
+\boldsymbol{S_{t}} = \boldsymbol{S_{t - 1}} - B(\boldsymbol{S_{t - 1}}, 1 - \text{exp}(\frac{-\boldsymbol{\lambda_{t - 1}}}{\boldsymbol{N}}))
 $$
