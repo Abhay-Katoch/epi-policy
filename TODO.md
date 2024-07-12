@@ -14,6 +14,9 @@ $$
 \boldsymbol{S_{t}} = \boldsymbol{S_{t - 1}} - B(\boldsymbol{S_{t - 1}}, 1 - \text{exp}(\frac{-\boldsymbol{\lambda_{t - 1}}}{\boldsymbol{N}}))
 $$
 
-However, these two functions should (if I am correct) produce two different infection dynamics, the former producing an exponential decay of the form $Ae^{\lambda}$, while the second should produce a roughly linear decay, as evidenced by this plot.
+However, these two functions should (if I am correct) produce two different infection dynamics, the former producing an exponential decay of the form $Ae^{\lambda}$, while the second should produce a roughly linear decay, as evidenced by this plot of $S$ as a function of time:
 
-![alt text](image.png)
+![alt text](data/images/S_overtime.png)
+
+There's a possibility that I incorrectly modelled $\frac{dS}{dt}$ (I should've paid more attention in first year calculus :( ) or that the effect of NPIs creates a roughly linear decline, but this is still weird. 
+

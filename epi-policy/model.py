@@ -85,18 +85,6 @@ class EpiModel:
 
     def initialize_state(self, days):#, compartment_variables: list):
 
-        #for variable in compartment_variables:
-        #    setattr(self, variable, np.zeros((self.number_jurisdictions), dtype = int))
-
-        #self.incidence_history = np.zeros((self.number_jurisdiction, self.total_survey_lag))
-        #self.S = self.S0
-        #self.I = self.I0
-
-        self.incidence_history = np.zeros((self.number_jurisdictions, 15))
-        self.L = np.zeros((self.number_jurisdictions))
-        self.NPI = np.zeros((self.number_jurisdictions))
-
-
         self.S = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.I = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.E = np.zeros((days, self.number_jurisdictions)).astype(int)
@@ -106,24 +94,16 @@ class EpiModel:
         self.S_E = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.E_P = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.P_I = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.P_IA = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.P_A = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.A_R = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.I_R = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.p_SE = np.zeros((days, self.number_jurisdictions)).astype(int)
+
         self.L_star_t = np.zeros((self.number_jurisdictions))
         self.L_t = np.zeros((self.number_jurisdictions))
-
-        self.total_surv_lag = int(self.total_surv_lag)
         self.N = self.jurisdictions["population"].values
-
-        column_names = ["day", "jurisdiction.id", "L", "NPI", "S", "E", "P", "I", "A", "R"]
-        self.results = pd.DataFrame(columns = column_names)
-        self.total_survey_lag = 13
-        self.incidence_history = np.zeros((self.number_jurisdictions, self.total_survey_lag))
     
     def iterate_model(self, day):
-        C_hat_t = np.random.binomial(self.S_E[day - self.total_survey_lag], self.p) # type: ignore
+        C_hat_t = np.random.binomial(self.S_E[day - self.total_survey_lag.astype(int)], self.p) # type: ignore
         x_star_t = np.minimum((1e5 * C_hat_t) / (self.N * self.p * self.c), self.L_max) # type: ignore
 
         self.L_star_t += 0.5 * (x_star_t - self.L_star_t)
