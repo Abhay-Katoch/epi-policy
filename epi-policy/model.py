@@ -28,7 +28,6 @@ class EpiModel:
 
       k_mat = np.array([self.k_home, self.k_work_travel, self.k_other] * self.number_jurisdictions)
       k_mat = k_mat.reshape(self.number_jurisdictions, number_modes).astype(float)
-      print(f"\nK_mat:\n {k_mat}")
 
       # TODO: Implement try-catch routine to see if rows are not normalized
 
