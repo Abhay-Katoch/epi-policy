@@ -3,14 +3,7 @@ import pandas as pd
 
 class EpiModel:
 
-    def __init__(self, input_spreadsheet): #**parameters):
-
-        # Unpack dictionary of parameters into seperate variables of the form "self.key = value".
-        #for key, value in parameters.items():
-        #    setattr(self, key, value)
-
-        # Alternative to the former if I refactor the code to simply access values from the dictionary of parameters.
-        # self.parameters = parameters
+    def __init__(self, input_spreadsheet):
 
       self.inputs = pd.ExcelFile(input_spreadsheet)
 
@@ -35,6 +28,7 @@ class EpiModel:
 
       k_mat = np.array([self.k_home, self.k_work_travel, self.k_other] * self.number_jurisdictions)
       k_mat = k_mat.reshape(self.number_jurisdictions, number_modes).astype(float)
+      print(f"\nK_mat:\n {k_mat}")
 
       # TODO: Implement try-catch routine to see if rows are not normalized
 
@@ -61,17 +55,23 @@ class EpiModel:
 
           work_travel_mixing[i - 1, i - 1] = 1 - sum(work_travel_mixing[i - 1, ])
 
+      print(f"\nwork_travel_mixing:\n {work_travel_mixing}")
+
       M = np.stack([home_mixing, work_travel_mixing, other_mixing])
+
+      print(f"\nM:\n {M}")
 
       mixing_matrix = np.zeros((self.number_jurisdictions, self.number_jurisdictions))
 
       for i, mode in enumerate(mixing_modes):
           mixing_matrix = mixing_matrix + np.multiply(k_mat[:, i], M[i])
 
+      print(f"\nmixing_matrix:\n {mixing_matrix}")
+
       c_rr = self.jurisdictions['mixing.risk.ratio'].astype(float).values
 
-      tau_eff = (1 / self.delta) + (1 / self.gamma) # type: ignore
-      cbeta = self.R0 / tau_eff # type: ignore
+      tau_eff = (1 / self.delta) + (1 / self.gamma)
+      cbeta = self.R0 / tau_eff
       population_proportion = self.jurisdictions['population'].values / sum(self.jurisdictions['population'].values)
 
       c_1 = cbeta / (population_proportion[0] + sum(c_rr[1: ] * population_proportion[1: ]))
@@ -80,6 +80,8 @@ class EpiModel:
       k_i = cbeta_i * population_proportion / cbeta
 
       beta = np.transpose(cbeta_i * np.transpose(mixing_matrix))
+
+      print(f"\nbeta: {beta}\n")
 
       return beta
 
@@ -91,53 +93,57 @@ class EpiModel:
         self.P = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.A = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.R = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.D = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.S_E = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.E_P = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.P_I = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.P_A = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.A_R = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.I_R = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.I_D = np.zeros((days, self.number_jurisdictions)).astype(int)
 
         self.L_star_t = np.zeros((self.number_jurisdictions))
         self.L_t = np.zeros((self.number_jurisdictions))
         self.N = self.jurisdictions["population"].values
+        self.total_survey_lag = 13
     
     def iterate_model(self, day):
-        C_hat_t = np.random.binomial(self.S_E[day - self.total_survey_lag.astype(int)], self.p) # type: ignore
-        x_star_t = np.minimum((1e5 * C_hat_t) / (self.N * self.p * self.c), self.L_max) # type: ignore
+        C_hat_t = np.random.binomial(self.S_E[day - self.total_survey_lag], self.p)
+        x_star_t = np.minimum((1e3 * C_hat_t) / (self.N * self.p * self.c), self.L_max)
 
         self.L_star_t += 0.5 * (x_star_t - self.L_star_t)
 
-        update_up = (day % self.a_up == 0) & (np.round(self.L_star_t) > self.L_t) # type: ignore
-        update_down = (day % self.a_down == 0) & (np.round(self.L_star_t) < self.L_t) # type: ignore
+        update_up = (day % self.a_up == 0) & (np.round(self.L_star_t) > self.L_t)
         self.L_t = np.where(update_up, np.round(self.L_star_t), self.L_t)
+
+        update_down = (day % self.a_down == 0) & (np.round(self.L_star_t) < self.L_t)
         self.L_t = np.where(update_down, np.round(self.L_star_t), self.L_t)
 
-        self.beta_t = np.dot((1 - (self.L_t * self.tau)), self.beta) # type: ignore
+        self.beta_t = np.dot((1 - (self.L_t * self.tau)), self.beta)
         self.lambda_t = self.beta_t * (self.P[day] + self.I[day] + self.A[day])
 
         self.S_E[day] = np.random.binomial(self.S[day].astype(int), 1 - np.exp(- self.lambda_t / self.N))
-        self.E_P[day] = np.random.binomial(self.E[day].astype(int), 1 - np.exp(- self.sigma)) # type: ignore
+        self.E_P[day] = np.random.binomial(self.E[day].astype(int), 1 - np.exp(- self.sigma))
         
         # This may be an error; if I and A are independently sampled from P, then there is a possibility that I_t + A_t > P_{t - 1}
-        self.P_I[day] = np.random.binomial(self.P[day].astype(int), 1 - np.exp(- self.delta * (1 - self.rho))) # type: ignore
-        self.P_A[day] = np.random.binomial(self.P[day].astype(int), 1 - np.exp(- self.delta * self.rho)) # type: ignore
+        self.P_I[day] = np.random.binomial(self.P[day].astype(int), 1 - np.exp(- self.delta * (1 - self.rho)))
+        self.P_A[day] = np.random.binomial(self.P[day].astype(int), 1 - np.exp(- self.delta * self.rho))
 
         # Logic error in original implementation of I/A -> R; D is sampled from R, therefore there is a chance that D is sampled from A.
         #   - Unless r is adjusted for *all* cases and not just I, this leads to an oversampling of deaths.
         #   - Also, gamma should probably be different between I and A; it takes less time (assumed) to recover from A than I.
-        self.I_R[day] = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma))
+        self.I_R[day] = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (1 - self.r)))
         self.A_R[day] = np.random.binomial(self.A[day].astype(int), 1 - np.exp(-self.gamma))
 
-        # Potential logic error in the implementation of S_{t + 1}. Paper says that S_{t + 1} = S_t - S_E (where S_E is modelled by the binomial).
-        #   - This produces a linear decay for S overtime; not an exponential decay like one would expect from a differential equation.
-        #   - Paper also mentions dS/dt = \lambda_t .* S, but this produces an exponential decay function?? 
+        self.I_D[day] = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (self.r)))
+
         self.S[day + 1] = self.S[day] - self.S_E[day]
         self.E[day + 1] = self.E[day] + self.S_E[day] - self.E_P[day]
         self.P[day + 1] = self.P[day] + self.E_P[day] - (self.P_I[day] + self.P_A[day])
         self.I[day + 1] = self.I[day] + self.P_I[day] - self.I_R[day]
         self.A[day + 1] = self.A[day] + self.P_A[day] - self.A_R[day]
         self.R[day + 1] = self.R[day] + self.I_R[day] + self.A_R[day]
+        self.D[day + 1] = self.D[day] + self.I_D[day]
 
     def run_simulation(self, days: int):
         self.initialize_state(days)
