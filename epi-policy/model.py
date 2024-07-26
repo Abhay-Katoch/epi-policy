@@ -55,24 +55,18 @@ class EpiModel:
 
           work_travel_mixing[i - 1, i - 1] = 1 - sum(work_travel_mixing[i - 1, ])
 
-      print(f"\nwork_travel_mixing:\n {work_travel_mixing}")
-
       M = np.stack([home_mixing, work_travel_mixing, other_mixing])
-
-      print(f"\nM:\n {M}")
 
       mixing_matrix = np.zeros((self.number_jurisdictions, self.number_jurisdictions))
 
       for i, mode in enumerate(mixing_modes):
           mixing_matrix = mixing_matrix + np.multiply(k_mat[:, i], M[i])
 
-      print(f"\nmixing_matrix:\n {mixing_matrix}")
-
       c_rr = self.jurisdictions['mixing.risk.ratio'].astype(float).values
 
       tau_eff = (1 / self.delta) + (1 / self.gamma)
       cbeta = self.R0 / tau_eff
-      population_proportion = self.jurisdictions['population'].values / sum(self.jurisdictions['population'].values)
+      population_proportion = self.jurisdictions['population'].values.astype(int) / sum(self.jurisdictions['population'].values)
 
       c_1 = cbeta / (population_proportion[0] + sum(c_rr[1: ] * population_proportion[1: ]))
       cbeta_i = c_1 * c_rr
@@ -80,8 +74,6 @@ class EpiModel:
       k_i = cbeta_i * population_proportion / cbeta
 
       beta = np.transpose(cbeta_i * np.transpose(mixing_matrix))
-
-      print(f"\nbeta: {beta}\n")
 
       return beta
 
