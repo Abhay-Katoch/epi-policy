@@ -71,13 +71,10 @@ class EpiModel:
       c_1 = cbeta / (population_proportion[0] + sum(c_rr[1: ] * population_proportion[1: ]))
       cbeta_i = c_1 * c_rr
 
-      k_i = cbeta_i * population_proportion / cbeta
-
       self.beta = np.transpose(cbeta_i * np.transpose(mixing_matrix))
 
-    def initialize_state(self, days):#, compartment_variables: list):
+    def initialize_state(self, days):
 
-        self.nodes = ["S", "E", "P", "I", "A", "R", "D"]
         self.S = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.I = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.E = np.zeros((days, self.number_jurisdictions)).astype(int)
@@ -85,21 +82,14 @@ class EpiModel:
         self.A = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.R = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.D = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.S_E = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.E_P = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.P_IA = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.P_I = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.P_A = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.A_R = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.I_R = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.I_D = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.incidence_history = np.zeros((days, self.number_jurisdictions)).astype(int)
 
         self.L_star_t = np.zeros((self.number_jurisdictions))
         self.L_t = np.zeros((self.number_jurisdictions))
         self.N = self.jurisdictions["population"].values
     
     def iterate_model(self, day):
-        C_hat_t = np.random.binomial(self.S_E[day - int(self.total_surv_lag)], self.p)
+        C_hat_t = np.random.binomial(self.incidence_history[day - int(self.total_surv_lag)], self.p)
         x_star_t = np.minimum((1e5 * C_hat_t) / (self.N * self.p * self.c), self.L_max)
 
         self.L_star_t += 0.5 * (x_star_t - self.L_star_t)
@@ -113,29 +103,26 @@ class EpiModel:
         self.beta_t = np.dot((1 - (self.L_t * self.tau)), self.beta)
         self.lambda_t = self.beta_t * (self.P[day] + self.I[day] + self.A[day])
 
-        self.S_E[day] = np.random.binomial(self.S[day].astype(int), 1 - np.exp(- self.lambda_t / self.N))
-        self.E_P[day] = np.random.binomial(self.E[day].astype(int), 1 - np.exp(- self.sigma))
+        S_E = np.random.binomial(self.S[day].astype(int), 1 - np.exp(- self.lambda_t / self.N))
+        E_P = np.random.binomial(self.E[day].astype(int), 1 - np.exp(- self.sigma))
         
-        # If I and A are independently sampled from P, then there is a possibility that I_t + A_t > P_{t - 1}
-        self.P_IA[day] = np.random.binomial(self.P[day], 1 - np.exp(- self.delta))
-        self.P_I[day] = np.random.binomial(self.P_IA[day], 1 - self.rho)
-        self.P_A[day] = self.P_IA[day] - self.P_I[day]
+        P_IA = np.random.binomial(self.P[day], 1 - np.exp(- self.delta))
+        P_I = np.random.binomial(P_IA, 1 - self.rho)
+        P_A = P_IA - P_I
 
-        # Logic error in original implementation of I/A -> R; D is sampled from R, therefore there is a chance that D is sampled from A.
-        #   - Unless r is adjusted for *all* cases and not just I, this leads to an oversampling of deaths.
-        #   - Also, gamma should probably be different between I and A; it takes less time (assumed) to recover from A than I.
-        self.I_R[day] = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (1 - self.r)))
-        self.A_R[day] = np.random.binomial(self.A[day].astype(int), 1 - np.exp(-self.gamma))
+        A_R = np.random.binomial(self.A[day].astype(int), 1 - np.exp(-self.gamma))
+        I_R = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (1 - self.r)))
+        I_D = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (self.r)))
 
-        self.I_D[day] = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (self.r)))
+        self.incidence_history[day] = S_E
 
-        self.S[day + 1] = self.S[day] - self.S_E[day]
-        self.E[day + 1] = self.E[day] + self.S_E[day] - self.E_P[day]
-        self.P[day + 1] = self.P[day] + self.E_P[day] - self.P_IA[day]
-        self.I[day + 1] = self.I[day] + self.P_I[day] - self.I_R[day]
-        self.A[day + 1] = self.A[day] + self.P_A[day] - self.A_R[day]
-        self.R[day + 1] = self.R[day] + self.I_R[day] + self.A_R[day]
-        self.D[day + 1] = self.D[day] + self.I_D[day]
+        self.S[day + 1] = self.S[day] - S_E
+        self.E[day + 1] = self.E[day] + S_E - E_P
+        self.P[day + 1] = self.P[day] + E_P - P_IA
+        self.I[day + 1] = self.I[day] + P_I - I_R
+        self.A[day + 1] = self.A[day] + P_A - A_R
+        self.R[day + 1] = self.R[day] + I_R + A_R
+        self.D[day + 1] = self.D[day] + I_D
 
     def run_simulation(self, days: int):
         self.days = days
@@ -145,14 +132,3 @@ class EpiModel:
 
         for day in range(self.days - 1):
             self.iterate_model(day)
-
-            try:
-              arrays = self.S[day], self.E[day], self.P[day], self.I[day], self.A[day], self.R[day]
-
-              for array in arrays:
-                 if np.any(array < 0):
-                    raise ValueError("Negative value found in array")
-
-            except ValueError as e:
-               print(e)
-               print("Negative value found in array: {array} on day: {day}")

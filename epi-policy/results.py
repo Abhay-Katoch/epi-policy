@@ -40,7 +40,10 @@ beta = commuting_matrix.div(total_commuters_per_origin, axis='index')
 model.generate_beta(work_travel_mixing=beta)
 
 # Run Simulation
-days = 365
+days = 730
+#model.r = 0.004
+#model.rho = 0.25
+#model.tau = 0.11
 model.run_simulation(days)
 
 # Save model outputs to a .csv file. 

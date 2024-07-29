@@ -76,7 +76,7 @@ MA_deaths = MA_deaths[MA_deaths['Date'] >= pd.Timestamp('2020-02-01')]
 MA_deaths['Days'] = (MA_deaths['Date'] - MA_deaths['Date'].min()).dt.days
 
 # Include only the first year
-MA_deaths = MA_deaths[MA_deaths['Days'] <= MA_deaths["Days"].min() + 365]
+MA_deaths = MA_deaths[MA_deaths['Days'] <= MA_deaths["Days"].min() + 730]
 
 total_deaths = results_long.groupby('day')['D'].sum()
 plt.plot(total_deaths, linestyle='-', color='blue', label='Projected Deaths')
