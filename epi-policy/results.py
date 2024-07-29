@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
 from model import EpiModel
 
 # Instantiate the model.
@@ -10,14 +9,15 @@ model = EpiModel("/Users/abhay/Documents/XLab/epi-policy/data/metapopulation-inp
 pop = pd.read_csv("/Users/abhay/Documents/XLab/epi-policy/data/co-est2023-alldata.csv", encoding="latin-1")
 mass = pop.loc[(pop["STATE"] == 25) & (pop["COUNTY"] != 0)]
 n = len(mass)
+proportion_infected = 0.0001
 
 model.jurisdictions = pd.DataFrame({
     'jurisdiction.name': mass["CTYNAME"].values,  # Empty string values represented as NaN
     'npi.coordination.block': [1] * n,
     'commuting.area.id': [1] * n,
     'population': mass["ESTIMATESBASE2020"].values.astype(int),
-    'S0': mass["ESTIMATESBASE2020"].values.astype(int) - 200,
-    'I0': [200] * n,  # Pre-filled with values from your example
+    'S0': np.round(mass["ESTIMATESBASE2020"].values.astype(int) * (1 - proportion_infected)),
+    'I0': np.round(mass["ESTIMATESBASE2020"].values.astype(int) * proportion_infected),  # Pre-filled with values from your example
     'cost.npi': [0.0] * n,  # Pre-filled with values from your example
     'mixing.risk.ratio': [1.0] * n  # Pre-filled with values from your example
 }, index=pd.Index(range(n), name='jurisdiction.id'))

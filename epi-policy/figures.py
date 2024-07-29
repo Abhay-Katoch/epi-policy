@@ -8,8 +8,6 @@ import pandas as pd
 
 # Use default matplotlib mathtext renderer instead of LaTeX
 plt.rcParams['text.usetex'] = False
-
-
 nodes = ["S", "E", "P", "I", "A", "R", "D"]
 
 # Instantiate nodes for directed graph
@@ -60,33 +58,36 @@ nx.draw_networkx_edge_labels(
     edge_labels={(u, v): d['label'] for u, v, d in G.edges(data=True)}
 )
 
-plt.savefig('figures/figure_1.png')
+plt.savefig('/Users/abhay/Documents/XLab/epi-policy/figures/figure_1.png')
+plt.close()
 
 ############################################################
 # Figure 2
 ############################################################
 
 results_long = pd.read_csv("/Users/abhay/Documents/XLab/epi-policy/results/raw_results_long.csv")
-MA_deaths = pd.read_csv("/Users/abhay/Documents/XLab/epi-policy/data/data_table_for_cumulative_deaths__massachusetts.csv", header = 2)
+MA_deaths = pd.read_csv("/Users/abhay/Documents/XLab/epi-policy/data/data_table_for_cumulative_deaths__massachusetts.csv", header=2)
 
 MA_deaths['Date'] = pd.to_datetime(MA_deaths['Date'], format='%b %d %Y')
 MA_deaths['Cumulative Deaths'] = MA_deaths['Cumulative Deaths'].replace('Counts 1-9', '0').astype(int)
+
+# Create a filter to exclude dates before February 1st, 2020: first COVID-19 case in MA
+MA_deaths = MA_deaths[MA_deaths['Date'] >= pd.Timestamp('2020-02-01')]
 MA_deaths['Days'] = (MA_deaths['Date'] - MA_deaths['Date'].min()).dt.days
-MA_deaths = MA_deaths[MA_deaths['Days From Start'] <= 365]
 
-# Existing code to generate a plot (assuming df is defined elsewhere)
+# Include only the first year
+MA_deaths = MA_deaths[MA_deaths['Days'] <= MA_deaths["Days"].min() + 365]
+
 total_deaths = results_long.groupby('day')['D'].sum()
+plt.plot(total_deaths, linestyle='-', color='blue', label='Projected Deaths')
+plt.plot(MA_deaths['Days'], MA_deaths['Cumulative Deaths'], linestyle='--', color='orange', label='Actual Deaths')
 
-plt.figure(figsize=(10, 6))
-plt.plot(total_deaths.index, total_deaths.values, marker='o', linestyle='-', label='Total Deaths by Day')
-
-# Plot the 'Cumulative Deaths' from df_new
-plt.plot(MA_deaths['Days'], MA_deaths['Cumulative Deaths'], marker='x', linestyle='--', label='Deaths')
-
-# Enhancing the plot
-plt.title('Comparison of Total Deaths Over Time')
-plt.xlabel('Days')
-plt.ylabel('Number of Deaths')
+plt.title('Deceased Individuals (D) per Day January 11, 2020 - January 11, 2021')
+plt.xlabel('Days since January 11, 2020')
+plt.ylabel('Deceased Individuals')
 plt.legend()
-plt.grid(True)
-plt.show()
+plt.grid()
+
+plt.savefig('/Users/abhay/Documents/XLab/epi-policy/figures/figure_2.png')
+plt.close()
+
