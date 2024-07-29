@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import networkx as nx
+import pandas as pd
 
 ############################################################
 # Figure 1
@@ -11,7 +12,7 @@ plt.rcParams['text.usetex'] = False
 
 nodes = ["S", "E", "P", "I", "A", "R", "D"]
 
-# Instantiate nodes for DiGraph
+# Instantiate nodes for directed graph
 G = nx.DiGraph()
 G.add_nodes_from(nodes)
 
@@ -60,3 +61,32 @@ nx.draw_networkx_edge_labels(
 )
 
 plt.savefig('figures/figure_1.png')
+
+############################################################
+# Figure 2
+############################################################
+
+results_long = pd.read_csv("/Users/abhay/Documents/XLab/epi-policy/results/raw_results_long.csv")
+MA_deaths = pd.read_csv("/Users/abhay/Documents/XLab/epi-policy/data/data_table_for_cumulative_deaths__massachusetts.csv", header = 2)
+
+MA_deaths['Date'] = pd.to_datetime(MA_deaths['Date'], format='%b %d %Y')
+MA_deaths['Cumulative Deaths'] = MA_deaths['Cumulative Deaths'].replace('Counts 1-9', '0').astype(int)
+MA_deaths['Days'] = (MA_deaths['Date'] - MA_deaths['Date'].min()).dt.days
+MA_deaths = MA_deaths[MA_deaths['Days From Start'] <= 365]
+
+# Existing code to generate a plot (assuming df is defined elsewhere)
+total_deaths = results_long.groupby('day')['D'].sum()
+
+plt.figure(figsize=(10, 6))
+plt.plot(total_deaths.index, total_deaths.values, marker='o', linestyle='-', label='Total Deaths by Day')
+
+# Plot the 'Cumulative Deaths' from df_new
+plt.plot(MA_deaths['Days'], MA_deaths['Cumulative Deaths'], marker='x', linestyle='--', label='Deaths')
+
+# Enhancing the plot
+plt.title('Comparison of Total Deaths Over Time')
+plt.xlabel('Days')
+plt.ylabel('Number of Deaths')
+plt.legend()
+plt.grid(True)
+plt.show()
