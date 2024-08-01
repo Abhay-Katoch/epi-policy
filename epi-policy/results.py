@@ -9,7 +9,7 @@ model = EpiModel("/Users/abhay/Documents/XLab/epi-policy/data/metapopulation-inp
 pop = pd.read_csv("/Users/abhay/Documents/XLab/epi-policy/data/co-est2023-alldata.csv", encoding="latin-1")
 mass = pop.loc[(pop["STATE"] == 25) & (pop["COUNTY"] != 0)]
 n = len(mass)
-proportion_infected = 0.0001
+proportion_infected = 0.000001
 
 model.jurisdictions = pd.DataFrame({
     'jurisdiction.name': mass["CTYNAME"].values,  # Empty string values represented as NaN
@@ -41,17 +41,14 @@ model.generate_beta(work_travel_mixing=beta)
 
 # Run Simulation
 days = 730
-#model.r = 0.004
-#model.rho = 0.25
-#model.tau = 0.11
 model.run_simulation(days)
 
 # Save model outputs to a .csv file. 
-model_outputs = np.stack([model.S, model.E, model.P, model.I, model.A, model.R, model.D], axis=-1).reshape(-1, 7)
+model_outputs = np.stack([model.S, model.E, model.P, model.I, model.A, model.R, model.D, model.NPI], axis=-1).reshape(-1, 8)
 
-results_long = pd.DataFrame(model_outputs, columns=['S', 'E', 'P', 'I', 'A', 'R', 'D'])
+results_long = pd.DataFrame(model_outputs, columns=['S', 'E', 'P', 'I', 'A', 'R', 'D', 'NPI'])
 results_long['day'] = np.repeat(np.arange(model.days), model.number_jurisdictions)
 results_long['jurisdiction'] = np.tile(np.arange(model.number_jurisdictions), model.days)
 
-results_long = results_long[['day', 'jurisdiction', 'S', 'E', 'P', 'I', 'A', 'R', 'D']]
+results_long = results_long[['day', 'jurisdiction', 'NPI', 'S', 'E', 'P', 'I', 'A', 'R', 'D']]
 results_long.to_csv("/Users/abhay/Documents/XLab/epi-policy/results/raw_results_long.csv")

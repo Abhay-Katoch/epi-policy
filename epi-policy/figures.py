@@ -8,6 +8,9 @@ import pandas as pd
 
 # Use default matplotlib mathtext renderer instead of LaTeX
 plt.rcParams['text.usetex'] = False
+plt.rcParams["font.family"] = "serif"
+plt.rcParams['font.size'] = 16
+
 nodes = ["S", "E", "P", "I", "A", "R", "D"]
 
 # Instantiate nodes for directed graph
@@ -77,15 +80,15 @@ MA_deaths['Days'] = (MA_deaths['Date'] - MA_deaths['Date'].min()).dt.days
 
 # Include only the first year
 MA_deaths = MA_deaths[MA_deaths['Days'] <= MA_deaths["Days"].min() + 730]
-
 total_deaths = results_long.groupby('day')['D'].sum()
-plt.plot(total_deaths, linestyle='-', color='blue', label='Projected Deaths')
-plt.plot(MA_deaths['Days'], MA_deaths['Cumulative Deaths'], linestyle='--', color='orange', label='Actual Deaths')
 
-plt.title('Deceased Individuals (D) per Day January 11, 2020 - January 11, 2021')
-plt.xlabel('Days since January 11, 2020')
-plt.ylabel('Deceased Individuals')
+plt.figure(figsize=(8, 5))
+plt.plot(total_deaths, linestyle='--', label='Projected Deaths')
+plt.plot(MA_deaths['Days'], MA_deaths['Cumulative Deaths'], linestyle='-', label='Actual Deaths')
+plt.xlabel(f"Days since {MA_deaths['Date'].min().strftime('%d %B, %Y')}")
+plt.ylabel(r'Number of Deceased Individuals ($D$)')
 plt.legend()
+plt.tight_layout()
 plt.grid()
 
 plt.savefig('/Users/abhay/Documents/XLab/epi-policy/figures/figure_2.png')

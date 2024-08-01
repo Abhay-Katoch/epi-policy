@@ -83,6 +83,7 @@ class EpiModel:
         self.R = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.D = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.incidence_history = np.zeros((days, self.number_jurisdictions)).astype(int)
+        self.NPI = np.zeros((days, self.number_jurisdictions)).astype(int)
 
         self.L_star_t = np.zeros((self.number_jurisdictions))
         self.L_t = np.zeros((self.number_jurisdictions))
@@ -100,8 +101,8 @@ class EpiModel:
         update_down = (day % self.a_down == 0) & (np.round(self.L_star_t) < self.L_t)
         self.L_t = np.where(update_down, np.round(self.L_star_t), self.L_t)
 
-        self.beta_t = np.dot((1 - (self.L_t * self.tau)), self.beta)
-        self.lambda_t = self.beta_t * (self.P[day] + self.I[day] + self.A[day])
+        self.beta_t = np.matmul((1 - self.L_t * self.tau), self.beta)
+        self.lambda_t = np.matmul(self.beta_t, (self.P[day] + self.I[day] + self.A[day]))
 
         S_E = np.random.binomial(self.S[day].astype(int), 1 - np.exp(- self.lambda_t / self.N))
         E_P = np.random.binomial(self.E[day].astype(int), 1 - np.exp(- self.sigma))
@@ -115,6 +116,7 @@ class EpiModel:
         I_D = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (self.r)))
 
         self.incidence_history[day] = S_E
+        self.NPI[day] = self.L_t
 
         self.S[day + 1] = self.S[day] - S_E
         self.E[day + 1] = self.E[day] + S_E - E_P
