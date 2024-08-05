@@ -11,11 +11,11 @@ results/*
 # Unignore the results directory itself
 !results/
 
-# Unignore the figures subdirectory
-!results/figures/
-
 # Ignore all files in the figures subdirectory
 results/figures/*
+
+# Unignore the figures subdirectory
+!results/figures/
 
 # C extensions
 *.so
