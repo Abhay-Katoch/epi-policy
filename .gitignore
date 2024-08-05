@@ -9,13 +9,13 @@ __pycache__/
 results/*
 
 # Unignore the results directory itself
-!results/
+!results/.gitkeep
 
 # Ignore all files in the figures subdirectory
 results/figures/*
 
 # Unignore the figures subdirectory
-!results/figures/
+!results/figures/.gitkeep
 
 # C extensions
 *.so
