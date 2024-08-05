@@ -85,15 +85,15 @@ class EpiModel:
         self.incidence_history = np.zeros((days, self.number_jurisdictions)).astype(int)
         self.NPI = np.zeros((days, self.number_jurisdictions)).astype(int)
 
-        self.L_star_t = np.zeros((self.number_jurisdictions))
-        self.L_t = np.zeros((self.number_jurisdictions))
+        self.L_star_t = np.zeros((self.number_jurisdictions, 1))
+        self.L_t = np.zeros((self.number_jurisdictions, 1))
         self.N = self.jurisdictions["population"].values
     
     def iterate_model(self, day):
         C_hat_t = np.random.binomial(self.incidence_history[day - int(self.total_surv_lag)], self.p)
         x_star_t = np.minimum((1e5 * C_hat_t) / (self.N * self.p * self.c), self.L_max)
 
-        self.L_star_t += 0.5 * (x_star_t - self.L_star_t)
+        self.L_star_t += 0.5 * (x_star_t[:, np.newaxis] - self.L_star_t)
 
         update_up = (day % self.a_up == 0) & (np.round(self.L_star_t) > self.L_t)
         self.L_t = np.where(update_up, np.round(self.L_star_t), self.L_t)
@@ -101,10 +101,10 @@ class EpiModel:
         update_down = (day % self.a_down == 0) & (np.round(self.L_star_t) < self.L_t)
         self.L_t = np.where(update_down, np.round(self.L_star_t), self.L_t)
 
-        self.beta_t = np.matmul((1 - self.L_t * self.tau), self.beta)
-        self.lambda_t = np.matmul(self.beta_t, (self.P[day] + self.I[day] + self.A[day]))
+        self.beta_t = (1 - (self.L_t * self.tau)) * self.beta
+        self.lambda_t = np.matmul(self.beta_t, (self.P[day] + self.I[day] + self.A[day]) / self.N)
 
-        S_E = np.random.binomial(self.S[day].astype(int), 1 - np.exp(- self.lambda_t / self.N))
+        S_E = np.random.binomial(self.S[day].astype(int), 1 - np.exp(- self.lambda_t))
         E_P = np.random.binomial(self.E[day].astype(int), 1 - np.exp(- self.sigma))
         
         P_IA = np.random.binomial(self.P[day], 1 - np.exp(- self.delta))
@@ -116,7 +116,7 @@ class EpiModel:
         I_D = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (self.r)))
 
         self.incidence_history[day] = S_E
-        self.NPI[day] = self.L_t
+        self.NPI[day] = self.L_t.flatten()
 
         self.S[day + 1] = self.S[day] - S_E
         self.E[day + 1] = self.E[day] + S_E - E_P

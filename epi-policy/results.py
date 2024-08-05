@@ -9,7 +9,7 @@ model = EpiModel("/Users/abhay/Documents/XLab/epi-policy/data/metapopulation-inp
 pop = pd.read_csv("/Users/abhay/Documents/XLab/epi-policy/data/co-est2023-alldata.csv", encoding="latin-1")
 mass = pop.loc[(pop["STATE"] == 25) & (pop["COUNTY"] != 0)]
 n = len(mass)
-proportion_infected = 0.000001
+proportion_infected = 0.00001
 
 model.jurisdictions = pd.DataFrame({
     'jurisdiction.name': mass["CTYNAME"].values,  # Empty string values represented as NaN
@@ -40,7 +40,7 @@ beta = commuting_matrix.div(total_commuters_per_origin, axis='index')
 model.generate_beta(work_travel_mixing=beta)
 
 # Run Simulation
-days = 730
+days = 365
 model.run_simulation(days)
 
 # Save model outputs to a .csv file. 
