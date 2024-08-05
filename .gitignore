@@ -5,6 +5,18 @@
 __pycache__/
 *.py[cod]
 
+# Ignore all files in the results directory
+results/*
+
+# Unignore the results directory itself
+!results/
+
+# Unignore the figures subdirectory
+!results/figures/
+
+# Ignore all files in the figures subdirectory
+results/figures/*
+
 # C extensions
 *.so
 
