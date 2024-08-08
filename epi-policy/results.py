@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from model import EpiModel
 
-# Instantiate the model.
+""" # Instantiate the model.
 model = EpiModel("/Users/abhay/Documents/XLab/epi-policy/data/metapopulation-inputs-master.xlsx")
 
 # Create the matrix with jurisdiction information: county name, population, and S0 + I0
@@ -42,13 +42,43 @@ model.generate_beta(work_travel_mixing=beta)
 # Run Simulation
 days = 365
 model.run_simulation(days)
+model.save_results(file_location = "/Users/abhay/Documents/XLab/epi-policy/results/raw_results_long.csv") """
 
-# Save model outputs to a .csv file. 
-model_outputs = np.stack([model.S, model.E, model.P, model.I, model.A, model.R, model.D, model.NPI], axis=-1).reshape(-1, 8)
+# Figure 1 - Marginal Benefit of ESS w/o heterogeneity
+np.random.seed(0)
 
-results_long = pd.DataFrame(model_outputs, columns=['S', 'E', 'P', 'I', 'A', 'R', 'D', 'NPI'])
-results_long['day'] = np.repeat(np.arange(model.days), model.number_jurisdictions)
-results_long['jurisdiction'] = np.tile(np.arange(model.number_jurisdictions), model.days)
+days = 365
+outcomes = ["deaths_per_100k", "CH_illness", "CH_deaths", "CH", "CNPI", "C"]
+marginal_NMB_results = pd.DataFrame(columns = outcomes)
 
-results_long = results_long[['day', 'jurisdiction', 'NPI', 'S', 'E', 'P', 'I', 'A', 'R', 'D']]
-results_long.to_csv("/Users/abhay/Documents/XLab/epi-policy/results/raw_results_long.csv")
+base_model = EpiModel("/Users/abhay/Documents/XLab/epi-policy/data/metapopulation-inputs-master.xlsx")
+base_model.generate_beta(work_travel_mixing = None)
+base_model.initialize_state(days)
+base_model.run_simulation()
+base_model.save_results()
+
+marginal_NMB_results.loc["Base"] = base_model.results.iloc[-1][outcomes]
+
+model_no_het = EpiModel("/Users/abhay/Documents/XLab/epi-policy/data/metapopulation-inputs-master.xlsx")
+model_no_het.generate_beta(work_travel_mixing = None)
+model_no_het.initialize_state(days)
+
+model_no_het.survey_lag = 8
+model_no_het.case_ascertainment = 1
+
+model_no_het.run_simulation()
+model_no_het.save_results()
+marginal_NMB_results.loc[f"w/ ESS"] = model_no_het.results.iloc[-1][outcomes]
+
+
+"""
+for jurisdiction, name in enumerate(model_no_het.jurisdictions["jurisdiction.name"]):
+    model_no_het.initialize_state(days)
+    model_no_het.survey_lag[:jurisdiction + 1] = 3
+    model_no_het.case_ascertainment[:jurisdiction + 1] = 1
+
+    model_no_het.run_simulation()
+    model_no_het.save_results()
+
+    marginal_NMB_results.loc[f"{jurisdiction + 1} w/ ESS"] = model_no_het.results.iloc[-1][outcomes]
+"""

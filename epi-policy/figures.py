@@ -61,7 +61,7 @@ nx.draw_networkx_edge_labels(
     edge_labels={(u, v): d['label'] for u, v, d in G.edges(data=True)}
 )
 
-plt.savefig('/Users/abhay/Documents/XLab/epi-policy/figures/figure_1.png')
+plt.savefig('/Users/abhay/Documents/XLab/epi-policy/results/figures/figure_1.png')
 plt.close()
 
 ############################################################
@@ -79,7 +79,7 @@ MA_deaths = MA_deaths[MA_deaths['Date'] >= pd.Timestamp('2020-02-01')]
 MA_deaths['Days'] = (MA_deaths['Date'] - MA_deaths['Date'].min()).dt.days
 
 # Include only the first year
-MA_deaths = MA_deaths[MA_deaths['Days'] <= MA_deaths["Days"].min() + 730]
+MA_deaths = MA_deaths[MA_deaths['Days'] <= MA_deaths["Days"].min() + 365]
 total_deaths = results_long.groupby('day')['D'].sum()
 
 plt.figure(figsize=(8, 5))
@@ -91,6 +91,6 @@ plt.legend()
 plt.tight_layout()
 plt.grid()
 
-plt.savefig('/Users/abhay/Documents/XLab/epi-policy/figures/figure_2.png')
+plt.savefig('/Users/abhay/Documents/XLab/epi-policy/results/figures/figure_2.png')
 plt.close()
 
