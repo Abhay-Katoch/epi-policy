@@ -105,10 +105,10 @@ class EpiModel:
         self.L_star_t += 0.5 * (x_star_t[:, np.newaxis] - self.L_star_t)
 
         update_up = (day % self.a_up == 0) & (np.round(self.L_star_t) > self.L_t)
-        self.L_t = np.where(update_up, np.round(self.L_star_t), self.L_t)
+        self.L_t = np.where(update_up, np.floor(self.L_star_t), self.L_t)
 
         update_down = (day % self.a_down == 0) & (np.round(self.L_star_t) < self.L_t)
-        self.L_t = np.where(update_down, np.round(self.L_star_t), self.L_t)
+        self.L_t = np.where(update_down, np.floor(self.L_star_t), self.L_t)
 
         self.beta_t = (1 - (self.L_t * self.tau)) * self.beta
         self.lambda_t = np.matmul(self.beta_t, (self.P[day] + self.I[day] + self.A[day]) / self.N)
