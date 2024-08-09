@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from functions import calibrate_logistic_function, logistic_growth_function
 
 class EpiModel:
 
@@ -74,28 +75,32 @@ class EpiModel:
       self.beta = np.transpose(cbeta_i * np.transpose(mixing_matrix))
 
     def initialize_state(self, days):
-        self.days = days
+        self.S = self.E = self.P = self.I = self.A = self.R = self.D = np.zeros(self.number_jurisdictions, dtype = int)
+        self.N = np.array(self.jurisdictions["population"].values, dtype = int)
 
-        self.S = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.I = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.E = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.P = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.A = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.R = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.D = np.zeros((days, self.number_jurisdictions)).astype(int)
-
-        self.S[0] = self.jurisdictions["S0"].values.astype(int)
-        self.I[0] = self.jurisdictions["I0"].values.astype(int)
-
-        self.survey_lag = np.full((self.number_jurisdictions), self.total_surv_lag).astype(int)
-        self.case_ascertainment = np.full((self.number_jurisdictions), self.p).astype(float)
-        self.incidence_history = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.NPI = np.zeros((days, self.number_jurisdictions)).astype(int)
-        self.Li = np.zeros((days, self.number_jurisdictions)).astype(float)
+        self.survey_lag = np.full((self.number_jurisdictions), self.total_surv_lag, dtype = int)
+        self.case_ascertainment = np.full((self.number_jurisdictions), self.p, dtype = float)
+        self.incidence_history = np.zeros((days, self.number_jurisdictions), dtype = int)
 
         self.L_star_t = np.zeros((self.number_jurisdictions, 1))
         self.L_t = np.zeros((self.number_jurisdictions, 1))
-        self.N = self.jurisdictions["population"].values
+
+        r_scale_factor = calibrate_logistic_function(
+          y_max = self.p_r_star, 
+          mid_point = self.t_mid_IFR, 
+          x_transition_units = self.t_r_star, 
+          x_vector = np.arange(0, 365)
+        )
+
+        IFR_time_mult = logistic_growth_function(
+            y_max = self.p_r_star, 
+            mid_point = self.t_mid_IFR, 
+            x_transition_units = self.t_r_star, 
+            x = np.arange(0, 365, 0.01), 
+            scale_factor = r_scale_factor
+        )
+
+        self.time_varying_IFR = self.r * (1 - IFR_time_mult)
     
     def iterate_model(self, day):
         daily_incidences = self.incidence_history[(day - self.survey_lag), np.arange(self.number_jurisdictions)]
@@ -111,35 +116,50 @@ class EpiModel:
         self.L_t = np.where(update_down, np.floor(self.L_star_t), self.L_t)
 
         self.beta_t = (1 - (self.L_t * self.tau)) * self.beta
-        self.lambda_t = np.matmul(self.beta_t, (self.P[day] + self.I[day] + self.A[day]) / self.N)
+        self.lambda_t = np.matmul(self.beta_t, (self.P + self.I + self.A) / self.N)
 
-        S_E = np.random.binomial(self.S[day].astype(int), 1 - np.exp(- self.lambda_t))
-        E_P = np.random.binomial(self.E[day].astype(int), 1 - np.exp(- self.sigma))
+        S_E = np.random.binomial(self.S, 1 - np.exp(-self.lambda_t))
+        self.incidence_history[day] = S_E
+
+        E_P = np.random.binomial(self.E, 1 - np.exp(-self.sigma))
         
-        P_IA = np.random.binomial(self.P[day], 1 - np.exp(- self.delta))
+        P_IA = np.random.binomial(self.P, 1 - np.exp(-self.delta))
         P_I = np.random.binomial(P_IA, 1 - self.rho)
         P_A = P_IA - P_I
 
-        A_R = np.random.binomial(self.A[day].astype(int), 1 - np.exp(-self.gamma))
-        I_R = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (1 - self.r)))
-        I_D = np.random.binomial(self.I[day].astype(int), 1 - np.exp(-self.gamma  * (self.r)))
+        I_RD = np.random.binomial(self.I, 1 - np.exp(-self.gamma))
+        I_D = np.random.binomial(I_RD, self.time_varying_IFR[day])
+        I_R = I_RD - I_D
 
-        self.incidence_history[day + 1] = S_E
-        self.NPI[day + 1] = self.L_t.flatten()
-        self.Li[day + 1] = self.L_star_t.flatten()
+        A_R = np.random.binomial(self.A, 1 - np.exp(-self.gamma))
 
-        self.S[day + 1] = self.S[day] - S_E
-        self.E[day + 1] = self.E[day] + S_E - E_P
-        self.P[day + 1] = self.P[day] + E_P - P_IA
-        self.I[day + 1] = self.I[day] + P_I - I_R
-        self.A[day + 1] = self.A[day] + P_A - A_R
-        self.R[day + 1] = self.R[day] + I_R + A_R
-        self.D[day + 1] = self.D[day] + I_D
+        ## Difference equations
+        self.S = self.S - S_E
+        self.E = self.E + S_E - E_P
+        self.P = self.P + E_P - P_IA
+        self.I = self.I + P_I - I_R
+        self.A = self.A + P_A - A_R
+        self.R = self.R + A_R + I_R
+        self.D = self.D + I_D
 
-    def run_simulation(self):
+    def run_simulation(self, days):
+        self.S = self.jurisdictions["S0"].values.astype(int)
+        self.I = self.jurisdictions["I0"].values.astype(int)
 
-        for day in range(self.days - 1):
-            self.iterate_model(day)
+        columns = ['day', 'jurisdiction', 'NPI', 'S', 'E', 'P', 'I', 'A', 'R', 'D']
+        self.results = pd.DataFrame(columns = columns)
+
+        for day in range(days - 1):
+          self.iterate_model(day)
+
+          outputs = np.stack([
+            np.repeat(day, self.number_jurisdictions), 
+            range(self.number_jurisdictions), 
+            self.L_t.flatten(), 
+            self.S, self.E, self.P, self.I, self.A, self.R, self.D], axis=-1
+          ).reshape(-1, 10)
+
+          self.results = pd.concat([self.results, pd.DataFrame(outputs, columns = columns)])
 
     def save_results(self, file_location = None):
       

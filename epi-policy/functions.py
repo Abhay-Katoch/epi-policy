@@ -25,16 +25,13 @@ def logistic_growth_function(y_max, mid_point, x_transition_units, scale_factor,
 
         Examples
         --------
-        >>> logistic_fn(100, 50, 10, np.array([45, 50, 55]))
+        >>> logistic_growth_function(100, 50, 10, np.array([45, 50, 55]))
         array([27.5 , 50.  , 72.5])
     """
 
-    difference = mid_point - x
-    scale_parameter = x_transition_units * scale_factor
+    values = (y_max / (1 + (np.exp((mid_point - x) * (scale_factor * x_transition_units)))))
 
-    function = y_max / np.exp(difference * scale_parameter)
-
-    return function
+    return values
 
 def logistic_growth_objective(scale_factor, y_max, mid_point, x_transition_units, x_vector):
     """
@@ -81,13 +78,12 @@ def calibrate_logistic_function(y_max, mid_point, x_transition_units, x_vector):
         ----------
         y_max : float
             Asymptote of the logistic growth function, the maximum value the function approaches as x increases.
-        x_mid_point : float
+        mid_point : float
             The x value at which the function value is half of y_max.
-        x_trans : float
+        x_transition_units : float
             Transition duration in terms of x values over which most of the growth occurs.
         x_vector : array_like, optional
-            An array of x values over which the logistic function will be evaluated. If not provided,
-            it defaults to a sequence from 0 to three times the x_mid_point, with a step of 0.01.
+            An array of x values over which the logistic function will be evaluated.
 
         Returns
         -------
