@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from functions import calibrate_logistic_function, logistic_growth_function
+from epi_policy.functions import calibrate_logistic_function, logistic_growth_function
 
 class EpiModel:
 
@@ -145,6 +145,7 @@ class EpiModel:
     def run_simulation(self, days):
         self.S = self.jurisdictions["S0"].values.astype(int)
         self.I = self.jurisdictions["I0"].values.astype(int)
+        print(self.survey_lag)
 
         columns = ['day', 'jurisdiction', 'NPI', 'S', 'E', 'P', 'I', 'A', 'R', 'D']
         self.results = pd.DataFrame(columns = columns)
