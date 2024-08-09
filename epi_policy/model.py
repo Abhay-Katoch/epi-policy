@@ -145,7 +145,6 @@ class EpiModel:
     def run_simulation(self, days):
         self.S = self.jurisdictions["S0"].values.astype(int)
         self.I = self.jurisdictions["I0"].values.astype(int)
-        print(self.survey_lag)
 
         columns = ['day', 'jurisdiction', 'NPI', 'S', 'E', 'P', 'I', 'A', 'R', 'D']
         self.results = pd.DataFrame(columns = columns)
@@ -161,38 +160,4 @@ class EpiModel:
           ).reshape(-1, 10)
 
           self.results = pd.concat([self.results, pd.DataFrame(outputs, columns = columns)])
-
-    def save_results(self, file_location = None):
-      
-      total_population = np.tile(self.N, (self.days, 1)) # type: ignore
-      outputs = np.stack([self.S, self.E, self.P, self.I, self.A, self.R, self.D, self.NPI, total_population], axis=-1).reshape(-1, 9)
-      results = pd.DataFrame(outputs, columns=['S', 'E', 'P', 'I', 'A', 'R', 'D', 'NPI', 'N'])
-      
-      results['day'] = np.repeat(np.arange(self.days), self.number_jurisdictions)
-      results['jurisdiction'] = np.tile(np.arange(self.number_jurisdictions), self.days)
-      results = results[['day', 'jurisdiction', 'N', 'NPI', 'S', 'E', 'P', 'I', 'A', 'R', 'D']]
-
-      if file_location is not None:
-         results.to_csv(file_location)
-
-      cost_unwellness = self.healthcosts["DALY_weight"] * self.healthcosts["disease_duration"] * self.VSLY
-      mild_cost = cost_unwellness[cost_unwellness.index == "mild"].values
-
-      total_cost_unwellness = (
-         cost_unwellness + 
-         np.where(cost_unwellness.index.isin(["severe", "critical"]), mild_cost, 0) + 
-         self.healthcosts["hospital_cost"]
-      )
-
-      average_cost_infection = sum(total_cost_unwellness * self.healthcosts["disease_state_prevalence"])
-      cost_per_npi_level = (self.cost_max_npi * self.gdp_per_capita) / (self.L_max * 365)
-
-      results["deaths_per_100k"] = (results["D"] * 1e5) / results["N"]
-      results["CH_illness"] = (results["R"] * average_cost_infection) / results["N"]
-      results["CH_deaths"] = (results["deaths_per_100k"] * self.VSL) / 1e5
-      results["CH"] = results["CH_illness"] + results["CH_deaths"]
-      results["CNPI"] = results["NPI"] * cost_per_npi_level
-      results["C"] = results["CH"] + results["CNPI"]
-
-      self.results = results
       
